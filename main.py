@@ -8,7 +8,7 @@ if __name__ == '__main__':
 
 	print('Loading and preprocessing...')
 	x_train, y_train, x_test, y_test = load_data(data_dir)
-	x_train, x_test = preprocess(x_train, x_test, normalize=False)
+	x_train, x_test = preprocess(x_train, x_test, normalize=True)
 	x_train, y_train, x_valid, y_valid = train_valid_split(x_train, y_train)
 
 	model = LeNet_Cifar10(n_classes=10)

@@ -30,6 +30,37 @@ def load_data(data_dir):
     '''
 
     ### YOUR CODE HERE
+    # expect data_dir to contain files like data_batch_1, ..., data_batch_5 and test_batch
+    x_train_list = []
+    y_train_list = []
+
+    # load 5 training batches
+    for i in range(1, 6):
+        batch_name = os.path.join(data_dir, 'data_batch_{}'.format(i))
+        with open(batch_name, 'rb') as f:
+            entry = pickle.load(f, encoding='bytes')
+        x_train_list.append(entry[b'data'])
+        y_train_list.append(np.array(entry[b'labels'], dtype=np.int64))
+
+    # concatenate training data
+    x_train = np.concatenate(x_train_list, axis=0)
+    y_train = np.concatenate(y_train_list, axis=0)
+
+    # load test batch
+    test_batch = os.path.join(data_dir, 'test_batch')
+    with open(test_batch, 'rb') as f:
+        entry = pickle.load(f, encoding='bytes')
+    x_test = entry[b'data']
+    y_test = np.array(entry[b'labels'], dtype=np.int64)
+
+    # reshape: current shape (N, 3072) with R(1024),G(1024),B(1024)
+    # first reshape to (N, 3, 1024) then to (N, 3, 32, 32)
+    x_train = x_train.reshape((-1, 3, 1024)).reshape((-1, 3, 32, 32))
+    x_test = x_test.reshape((-1, 3, 1024)).reshape((-1, 3, 32, 32))
+
+    # ensure dtypes
+    x_train = x_train.astype(np.uint8)
+    x_test = x_test.astype(np.uint8)
 
     ### END YOUR CODE
     return x_train, y_train, x_test, y_test
@@ -57,6 +88,32 @@ def preprocess(train_images, test_images, normalize=False):
             (dtype=np.float64)
     '''
     ### YOUR CODE HERE
+    # convert to float64 for processing
+    train_images = train_images.astype(np.float64)
+    test_images = test_images.astype(np.float64)
+
+    if not normalize:
+        # simple rescaling to [0,1)
+        train_images = train_images / 255.0
+        test_images = test_images / 255.0
+    else:
+        # normalize each image by its own mean and std
+        # iterate over first dimension
+        for i in range(train_images.shape[0]):
+            img = train_images[i]
+            m = img.mean()
+            s = img.std()
+            if s == 0:
+                s = 1.0
+            train_images[i] = (img - m) / s
+
+        for i in range(test_images.shape[0]):
+            img = test_images[i]
+            m = img.mean()
+            s = img.std()
+            if s == 0:
+                s = 1.0
+            test_images[i] = (img - m) / s
 
     ### END CODE HERE
     return train_images, test_images
@@ -83,10 +140,28 @@ class LeNet(nn.Module):
         '''
         Define each layers of the model in __init__() function
         '''
+        # Convolutional layers
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=5)
+        self.bn1 = nn.BatchNorm2d(6)
+        self.relu1 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(kernel_size=2)
 
-        ### YOUR CODE HERE
+        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=5)
+        self.bn2 = nn.BatchNorm2d(16)
+        self.relu2 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(kernel_size=2)
 
-        ### END CODE HERE
+        # Fully connected layers
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.bn3 = nn.BatchNorm1d(120)
+        self.relu3 = nn.ReLU()
+
+        self.fc2 = nn.Linear(120, 84)
+        self.bn4 = nn.BatchNorm1d(84)
+        self.relu4 = nn.ReLU()
+        self.dropout = nn.Dropout()
+
+        self.fc3 = nn.Linear(84, n_classes)
     
     def forward(self, x):
         '''
@@ -99,9 +174,35 @@ class LeNet(nn.Module):
             logits: Tensor of shape [None, n_classes].
         '''
 
-        ### YOUR CODE HERE
+        # conv block 1
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu1(x)
+        x = self.pool1(x)
 
-        ### END CODE HERE
+        # conv block 2
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+        x = self.pool2(x)
+
+        # flatten
+        x = x.view(-1, 16 * 5 * 5)
+
+        # fc1
+        x = self.fc1(x)
+        x = self.bn3(x)
+        x = self.relu3(x)
+
+        # fc2
+        x = self.fc2(x)
+        x = self.bn4(x)
+        x = self.relu4(x)
+        x = self.dropout(x)
+
+        # output
+        x = self.fc3(x)
+
         return x
 
 
